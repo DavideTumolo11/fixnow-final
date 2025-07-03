@@ -502,23 +502,6 @@ function MainApp() {
     setScreenData(data);
   };
 
-  useEffect(() => {
-    console.log('🚀 FixNow Sardegna Starting...');
-    testSupabaseConnection();
-
-    // ✅ Valida configurazione Stripe
-    try {
-      validateStripeConfig();
-      console.log('✅ Stripe configuration valid');
-    } catch (error) {
-      console.error('❌ Stripe configuration error:', error);
-      Alert.alert(
-        'Errore Configurazione Stripe',
-        error.message,
-        [{ text: 'OK' }]
-      );
-    }
-  }, []);
 
   // Test Supabase connection
   useEffect(() => {

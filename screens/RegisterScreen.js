@@ -1,4 +1,4 @@
-// screens/RegisterScreen.js
+// screens/RegisterScreen.js - VERSIONE REALE con Supabase Auth
 import React, { useState } from 'react';
 import {
     StyleSheet,
@@ -13,7 +13,7 @@ import {
     ScrollView,
     ActivityIndicator
 } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, USER_TYPES } from '../contexts/AuthContext';
 
 // FixNow Colors
 const COLORS = {
@@ -29,21 +29,21 @@ const COLORS = {
 };
 
 // Tipi di utente disponibili
-const USER_TYPES = [
+const USER_TYPE_OPTIONS = [
     {
-        id: 'cliente',
+        id: USER_TYPES.CLIENTE,
         nome: '👤 Cliente',
         descrizione: 'Richiedo servizi di assistenza tecnica',
         color: COLORS.primary
     },
     {
-        id: 'tecnico',
+        id: USER_TYPES.TECNICO,
         nome: '🔧 Tecnico',
         descrizione: 'Offro servizi di assistenza tecnica',
         color: COLORS.secondary
     },
     {
-        id: 'hotel',
+        id: USER_TYPES.HOTEL,
         nome: '🏨 Hotel/B&B',
         descrizione: 'Gestisco una struttura ricettiva',
         color: COLORS.success
@@ -58,13 +58,24 @@ export default function RegisterScreen({ navigation }) {
         telefono: '',
         password: '',
         confirmPassword: '',
-        tipo_utente: ''
+        tipo_utente: '',
+
+        // Campi specifici hotel
+        nome_struttura: '',
+        tipologia_struttura: '',
+        numero_camere: '',
+        stelle: '',
+
+        // Campi specifici tecnico
+        specializzazioni: [],
+        descrizione_servizi: '',
+        raggio_azione_km: '30'
     });
+
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
 
-    const { signUp } = useAuth();
+    const { signUp, loading, error } = useAuth();
 
     // Aggiorna i dati del form
     const updateFormData = (field, value) => {
@@ -82,13 +93,14 @@ export default function RegisterScreen({ navigation }) {
 
     // Validazione telefono italiano
     const isValidPhone = (phone) => {
+        if (!phone) return true; // Telefono opzionale
         const phoneRegex = /^[\+]?[3][0-9]{8,9}$/;
         return phoneRegex.test(phone.replace(/\s/g, ''));
     };
 
     // Validazione form completa
     const validateForm = () => {
-        const { nome, cognome, email, telefono, password, confirmPassword, tipo_utente } = formData;
+        const { nome, cognome, email, password, confirmPassword, tipo_utente } = formData;
 
         if (!nome.trim() || !cognome.trim()) {
             Alert.alert('❌ Nome e Cognome', 'Inserisci nome e cognome completi.', [{ text: 'OK' }]);
@@ -105,7 +117,7 @@ export default function RegisterScreen({ navigation }) {
             return false;
         }
 
-        if (telefono && !isValidPhone(telefono)) {
+        if (formData.telefono && !isValidPhone(formData.telefono)) {
             Alert.alert('❌ Telefono Non Valido', 'Inserisci un numero di telefono italiano valido (es: 3401234567).', [{ text: 'OK' }]);
             return false;
         }
@@ -125,6 +137,14 @@ export default function RegisterScreen({ navigation }) {
             return false;
         }
 
+        // Validazioni specifiche per tipo utente
+        if (tipo_utente === USER_TYPES.HOTEL) {
+            if (!formData.nome_struttura.trim()) {
+                Alert.alert('❌ Nome Struttura', 'Inserisci il nome della tua struttura ricettiva.', [{ text: 'OK' }]);
+                return false;
+            }
+        }
+
         return true;
     };
 
@@ -132,56 +152,77 @@ export default function RegisterScreen({ navigation }) {
     const handleRegister = async () => {
         if (!validateForm()) return;
 
-        try {
-            setIsLoading(true);
-            console.log('📝 Attempting registration...');
+        console.log('📝 Attempting registration...');
+        console.log('User type:', formData.tipo_utente);
+        console.log('Email:', formData.email);
 
-            const userData = {
-                nome: formData.nome.trim(),
-                cognome: formData.cognome.trim(),
-                telefono: formData.telefono.trim() || null,
-                tipo_utente: formData.tipo_utente
-            };
+        // Prepara dati utente
+        const userData = {
+            nome: formData.nome.trim(),
+            cognome: formData.cognome.trim(),
+            telefono: formData.telefono.trim() || null,
+            tipo_utente: formData.tipo_utente
+        };
 
-            const { user, error } = await signUp(formData.email, formData.password, userData);
+        // Aggiungi campi specifici per tipo utente
+        if (formData.tipo_utente === USER_TYPES.HOTEL) {
+            userData.nome_struttura = formData.nome_struttura.trim();
+            userData.tipologia_struttura = formData.tipologia_struttura || 'hotel';
+            userData.numero_camere = parseInt(formData.numero_camere) || null;
+            userData.stelle = parseInt(formData.stelle) || null;
+        }
 
-            if (error) {
-                let errorMessage = 'Errore durante la registrazione. Riprova.';
+        if (formData.tipo_utente === USER_TYPES.TECNICO) {
+            userData.specializzazioni = formData.specializzazioni;
+            userData.descrizione_servizi = formData.descrizione_servizi.trim();
+            userData.raggio_azione_km = parseInt(formData.raggio_azione_km) || 30;
+        }
 
-                if (error.message.includes('User already registered')) {
-                    errorMessage = 'Questa email è già registrata. Prova ad accedere.';
-                } else if (error.message.includes('Password should be at least 6 characters')) {
-                    errorMessage = 'La password deve essere di almeno 6 caratteri.';
-                } else if (error.message.includes('Invalid email')) {
-                    errorMessage = 'L\'indirizzo email non è valido.';
-                }
+        // Chiama funzione di registrazione reale
+        const result = await signUp(formData.email, formData.password, userData);
 
-                Alert.alert('❌ Errore Registrazione', errorMessage, [{ text: 'OK' }]);
-                return;
+        if (result.success) {
+            console.log('✅ Registration successful!');
+
+            // Messaggio diverso per tipo utente
+            const userTypeDisplay = USER_TYPE_OPTIONS.find(t => t.id === userData.tipo_utente)?.nome || 'Utente';
+
+            let successMessage = `Benvenuto/a ${userData.nome}!\n\nAccount creato con successo come ${userTypeDisplay}.`;
+
+            if (result.needsEmailVerification) {
+                successMessage += '\n\n📧 Controlla la tua email per confermare l\'account.';
+            } else {
+                successMessage += '\n\nPuoi iniziare ad usare FixNow subito!';
             }
 
-            if (user) {
-                console.log('✅ Registration successful!');
-                Alert.alert(
-                    '✅ Registrazione Completata',
-                    `Benvenuto/a ${userData.nome}!\n\nAccount creato con successo come ${USER_TYPES.find(t => t.id === userData.tipo_utente)?.nome}.\n\nPuoi iniziare ad usare FixNow subito!`,
-                    [{
-                        text: 'Iniziamo!', onPress: () => {
-                            // L'AuthContext gestirà automaticamente la navigazione
-                        }
-                    }]
-                );
-            }
-
-        } catch (error) {
-            console.error('❌ Registration error:', error);
             Alert.alert(
-                '❌ Errore Imprevisto',
-                'Si è verificato un errore. Controlla la connessione internet e riprova.',
-                [{ text: 'OK' }]
+                '✅ Registrazione Completata',
+                successMessage,
+                [{
+                    text: result.needsEmailVerification ? 'Controlla Email' : 'Iniziamo!',
+                    onPress: () => {
+                        // L'AuthContext gestirà automaticamente la navigazione
+                        // Se serve email verification, l'utente vedrà la schermata appropriata
+                    }
+                }]
             );
-        } finally {
-            setIsLoading(false);
+        } else {
+            console.error('❌ Registration failed:', result.error);
+
+            // Gestione errori specifici
+            let errorMessage = result.error;
+
+            if (result.error.includes('User already registered')) {
+                errorMessage = 'Questa email è già registrata. Prova ad accedere.';
+            } else if (result.error.includes('Password should be at least 6 characters')) {
+                errorMessage = 'La password deve essere di almeno 6 caratteri.';
+            } else if (result.error.includes('Invalid email')) {
+                errorMessage = 'L\'indirizzo email non è valido.';
+            } else if (result.error.includes('Signup is disabled')) {
+                errorMessage = 'La registrazione è temporaneamente disabilitata.';
+            }
+
+            Alert.alert('❌ Errore Registrazione', errorMessage, [{ text: 'OK' }]);
         }
     };
 
@@ -210,7 +251,7 @@ export default function RegisterScreen({ navigation }) {
                     <Text style={styles.sectionSubtitle}>Seleziona come vuoi usare FixNow</Text>
 
                     <View style={styles.userTypeContainer}>
-                        {USER_TYPES.map((type) => (
+                        {USER_TYPE_OPTIONS.map((type) => (
                             <TouchableOpacity
                                 key={type.id}
                                 style={[
@@ -219,7 +260,7 @@ export default function RegisterScreen({ navigation }) {
                                     { borderColor: type.color }
                                 ]}
                                 onPress={() => updateFormData('tipo_utente', type.id)}
-                                disabled={isLoading}
+                                disabled={loading}
                             >
                                 <Text style={[styles.userTypeName, { color: type.color }]}>
                                     {type.nome}
@@ -253,7 +294,7 @@ export default function RegisterScreen({ navigation }) {
                                 onChangeText={(value) => updateFormData('nome', value)}
                                 autoCapitalize="words"
                                 returnKeyType="next"
-                                editable={!isLoading}
+                                editable={!loading}
                             />
                         </View>
                         <View style={styles.halfInput}>
@@ -266,7 +307,7 @@ export default function RegisterScreen({ navigation }) {
                                 onChangeText={(value) => updateFormData('cognome', value)}
                                 autoCapitalize="words"
                                 returnKeyType="next"
-                                editable={!isLoading}
+                                editable={!loading}
                             />
                         </View>
                     </View>
@@ -284,7 +325,7 @@ export default function RegisterScreen({ navigation }) {
                             autoCapitalize="none"
                             autoCorrect={false}
                             returnKeyType="next"
-                            editable={!isLoading}
+                            editable={!loading}
                         />
                     </View>
 
@@ -299,11 +340,98 @@ export default function RegisterScreen({ navigation }) {
                             onChangeText={(value) => updateFormData('telefono', value)}
                             keyboardType="phone-pad"
                             returnKeyType="next"
-                            editable={!isLoading}
+                            editable={!loading}
                         />
                         <Text style={styles.helperText}>Opzionale - Utile per contatti urgenti</Text>
                     </View>
                 </View>
+
+                {/* Campi specifici Hotel */}
+                {formData.tipo_utente === USER_TYPES.HOTEL && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>🏨 Informazioni Struttura</Text>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Nome Struttura *</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="es: Hotel Paradise"
+                                placeholderTextColor={COLORS.gray}
+                                value={formData.nome_struttura}
+                                onChangeText={(value) => updateFormData('nome_struttura', value)}
+                                autoCapitalize="words"
+                                returnKeyType="next"
+                                editable={!loading}
+                            />
+                        </View>
+
+                        <View style={styles.row}>
+                            <View style={styles.halfInput}>
+                                <Text style={styles.label}>Tipologia</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Hotel, B&B, Resort..."
+                                    placeholderTextColor={COLORS.gray}
+                                    value={formData.tipologia_struttura}
+                                    onChangeText={(value) => updateFormData('tipologia_struttura', value)}
+                                    autoCapitalize="words"
+                                    returnKeyType="next"
+                                    editable={!loading}
+                                />
+                            </View>
+                            <View style={styles.halfInput}>
+                                <Text style={styles.label}>Camere</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="es: 20"
+                                    placeholderTextColor={COLORS.gray}
+                                    value={formData.numero_camere}
+                                    onChangeText={(value) => updateFormData('numero_camere', value)}
+                                    keyboardType="numeric"
+                                    returnKeyType="next"
+                                    editable={!loading}
+                                />
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {/* Campi specifici Tecnico */}
+                {formData.tipo_utente === USER_TYPES.TECNICO && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>🔧 Informazioni Professionali</Text>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Descrizione Servizi</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                placeholder="Descrivi brevemente i tuoi servizi..."
+                                placeholderTextColor={COLORS.gray}
+                                value={formData.descrizione_servizi}
+                                onChangeText={(value) => updateFormData('descrizione_servizi', value)}
+                                multiline
+                                numberOfLines={3}
+                                textAlignVertical="top"
+                                editable={!loading}
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Raggio Azione (km)</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="30"
+                                placeholderTextColor={COLORS.gray}
+                                value={formData.raggio_azione_km}
+                                onChangeText={(value) => updateFormData('raggio_azione_km', value)}
+                                keyboardType="numeric"
+                                returnKeyType="next"
+                                editable={!loading}
+                            />
+                            <Text style={styles.helperText}>Distanza massima per gli interventi</Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Password Section */}
                 <View style={styles.section}>
@@ -321,12 +449,12 @@ export default function RegisterScreen({ navigation }) {
                                 onChangeText={(value) => updateFormData('password', value)}
                                 secureTextEntry={!showPassword}
                                 returnKeyType="next"
-                                editable={!isLoading}
+                                editable={!loading}
                             />
                             <TouchableOpacity
                                 style={styles.passwordToggle}
                                 onPress={() => setShowPassword(!showPassword)}
-                                disabled={isLoading}
+                                disabled={loading}
                             >
                                 <Text style={styles.passwordToggleText}>
                                     {showPassword ? '🙈' : '👁️'}
@@ -348,12 +476,12 @@ export default function RegisterScreen({ navigation }) {
                                 secureTextEntry={!showConfirmPassword}
                                 returnKeyType="done"
                                 onSubmitEditing={handleRegister}
-                                editable={!isLoading}
+                                editable={!loading}
                             />
                             <TouchableOpacity
                                 style={styles.passwordToggle}
                                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                                disabled={isLoading}
+                                disabled={loading}
                             >
                                 <Text style={styles.passwordToggleText}>
                                     {showConfirmPassword ? '🙈' : '👁️'}
@@ -363,13 +491,20 @@ export default function RegisterScreen({ navigation }) {
                     </View>
                 </View>
 
+                {/* Error Display */}
+                {error && (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>❌ {error}</Text>
+                    </View>
+                )}
+
                 {/* Register Button */}
                 <TouchableOpacity
-                    style={[styles.registerButton, isLoading && styles.buttonDisabled]}
+                    style={[styles.registerButton, loading && styles.buttonDisabled]}
                     onPress={handleRegister}
-                    disabled={isLoading}
+                    disabled={loading}
                 >
-                    {isLoading ? (
+                    {loading ? (
                         <ActivityIndicator color={COLORS.white} size="small" />
                     ) : (
                         <Text style={styles.registerButtonText}>🚀 Crea Account</Text>
@@ -382,7 +517,7 @@ export default function RegisterScreen({ navigation }) {
                     <TouchableOpacity
                         style={styles.loginButton}
                         onPress={() => navigation?.navigate('Login')}
-                        disabled={isLoading}
+                        disabled={loading}
                     >
                         <Text style={styles.loginButtonText}>
                             🔑 Accedi
@@ -399,6 +534,17 @@ export default function RegisterScreen({ navigation }) {
                         <Text style={styles.termsLink}>Privacy Policy</Text>
                     </Text>
                 </View>
+
+                {/* Development Info */}
+                {__DEV__ && (
+                    <View style={styles.devInfo}>
+                        <Text style={styles.devTitle}>🚧 Testing (Solo Development)</Text>
+                        <Text style={styles.devText}>🔄 Usando Supabase Auth REALE</Text>
+                        <Text style={styles.devText}>✅ Registrazione funzionale</Text>
+                        <Text style={styles.devText}>📧 Email verification automatica</Text>
+                        <Text style={styles.devText}>🗄️ Profilo salvato nel database</Text>
+                    </View>
+                )}
 
             </ScrollView>
         </KeyboardAvoidingView>
@@ -458,6 +604,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 2,
         borderColor: COLORS.light,
+        position: 'relative',
     },
     userTypeSelected: {
         borderWidth: 2,
@@ -477,11 +624,12 @@ const styles = StyleSheet.create({
         color: COLORS.gray,
     },
     selectedBadge: {
-        alignSelf: 'flex-start',
+        position: 'absolute',
+        top: 8,
+        right: 8,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
-        marginTop: 8,
     },
     selectedText: {
         color: COLORS.white,
@@ -513,6 +661,10 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: COLORS.dark,
     },
+    textArea: {
+        height: 80,
+        textAlignVertical: 'top',
+    },
     helperText: {
         fontSize: 12,
         color: COLORS.gray,
@@ -537,6 +689,19 @@ const styles = StyleSheet.create({
     },
     passwordToggleText: {
         fontSize: 16,
+    },
+    errorContainer: {
+        backgroundColor: '#FFF0F0',
+        borderWidth: 1,
+        borderColor: COLORS.error,
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+    },
+    errorText: {
+        color: COLORS.error,
+        fontSize: 14,
+        textAlign: 'center',
     },
     registerButton: {
         backgroundColor: COLORS.primary,
@@ -592,5 +757,24 @@ const styles = StyleSheet.create({
     termsLink: {
         color: COLORS.primary,
         fontWeight: '600',
+    },
+    devInfo: {
+        backgroundColor: COLORS.white,
+        padding: 15,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.success,
+    },
+    devTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: COLORS.dark,
+        marginBottom: 5,
+    },
+    devText: {
+        fontSize: 12,
+        color: COLORS.success,
+        marginBottom: 2,
+        fontWeight: '500',
     },
 });

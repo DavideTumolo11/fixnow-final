@@ -1,4 +1,4 @@
-// screens/LoginScreen.js
+// screens/LoginScreen.js - VERSIONE REALE con Supabase Auth
 import React, { useState } from 'react';
 import {
     StyleSheet,
@@ -29,12 +29,21 @@ const COLORS = {
 };
 
 export default function LoginScreen({ navigation }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [formData, setFormData] = useState({
+        email: '',
+        password: ''
+    });
     const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
 
-    const { signIn, resetPassword } = useAuth();
+    const { signIn, resetPassword, loading, error } = useAuth();
+
+    // Aggiorna form data
+    const updateFormData = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
 
     // Validazione email
     const isValidEmail = (email) => {
@@ -45,7 +54,7 @@ export default function LoginScreen({ navigation }) {
     // Gestisce il login
     const handleLogin = async () => {
         // Validazione input
-        if (!email.trim() || !password.trim()) {
+        if (!formData.email.trim() || !formData.password.trim()) {
             Alert.alert(
                 '❌ Campi Obbligatori',
                 'Inserisci email e password per accedere.',
@@ -54,7 +63,7 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        if (!isValidEmail(email)) {
+        if (!isValidEmail(formData.email)) {
             Alert.alert(
                 '❌ Email Non Valida',
                 'Inserisci un indirizzo email valido.',
@@ -63,7 +72,7 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        if (password.length < 6) {
+        if (formData.password.length < 6) {
             Alert.alert(
                 '❌ Password Troppo Corta',
                 'La password deve essere di almeno 6 caratteri.',
@@ -72,47 +81,42 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        try {
-            setIsLoading(true);
-            console.log('🔑 Attempting login...');
+        console.log('🔑 Attempting login with:', formData.email);
 
-            const { user, error } = await signIn(email, password);
+        // Chiama funzione di login reale
+        const result = await signIn(formData.email, formData.password);
 
-            if (error) {
-                let errorMessage = 'Errore durante il login. Riprova.';
-
-                if (error.message.includes('Invalid login credentials')) {
-                    errorMessage = 'Email o password non corretti.';
-                } else if (error.message.includes('Email not confirmed')) {
-                    errorMessage = 'Conferma la tua email prima di accedere.';
-                } else if (error.message.includes('Too many requests')) {
-                    errorMessage = 'Troppi tentativi. Attendi qualche minuto.';
-                }
-
-                Alert.alert('❌ Errore Login', errorMessage, [{ text: 'OK' }]);
-                return;
-            }
-
-            if (user) {
-                console.log('✅ Login successful!');
-                // L'AuthContext gestirà automaticamente la navigazione
-            }
-
-        } catch (error) {
-            console.error('❌ Login error:', error);
+        if (result.success) {
+            console.log('✅ Login successful!');
+            // L'AuthContext gestirà automaticamente la navigazione
             Alert.alert(
-                '❌ Errore Imprevisto',
-                'Si è verificato un errore. Controlla la connessione internet e riprova.',
-                [{ text: 'OK' }]
+                '✅ Login Effettuato!',
+                'Benvenuto in FixNow Sardegna!',
+                [{ text: 'Continua' }]
             );
-        } finally {
-            setIsLoading(false);
+        } else {
+            console.error('❌ Login failed:', result.error);
+
+            // Gestione errori specifici
+            let errorMessage = result.error;
+
+            if (result.error.includes('Invalid login credentials')) {
+                errorMessage = 'Email o password non corretti.';
+            } else if (result.error.includes('Email not confirmed')) {
+                errorMessage = 'Conferma la tua email prima di accedere.';
+            } else if (result.error.includes('Too many requests')) {
+                errorMessage = 'Troppi tentativi. Attendi qualche minuto.';
+            } else if (result.error.includes('Account bloccato')) {
+                errorMessage = result.error; // Mantieni il messaggio completo
+            }
+
+            Alert.alert('❌ Errore Login', errorMessage, [{ text: 'OK' }]);
         }
     };
 
     // Gestisce il reset password
     const handleForgotPassword = () => {
-        if (!email.trim()) {
+        if (!formData.email.trim()) {
             Alert.alert(
                 '💡 Inserisci Email',
                 'Inserisci la tua email nel campo sopra, poi premi di nuovo "Password Dimenticata".',
@@ -121,7 +125,7 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        if (!isValidEmail(email)) {
+        if (!isValidEmail(formData.email)) {
             Alert.alert(
                 '❌ Email Non Valida',
                 'Inserisci un indirizzo email valido per recuperare la password.',
@@ -132,38 +136,41 @@ export default function LoginScreen({ navigation }) {
 
         Alert.alert(
             '🔄 Recupero Password',
-            `Vuoi inviare le istruzioni per il reset della password a:\n\n${email}`,
+            `Vuoi inviare le istruzioni per il reset della password a:\n\n${formData.email}`,
             [
                 { text: 'Annulla', style: 'cancel' },
                 {
                     text: 'Invia',
                     onPress: async () => {
-                        try {
-                            setIsLoading(true);
-                            const { error } = await resetPassword(email);
+                        console.log('🔄 Sending password reset to:', formData.email);
 
-                            if (error) {
-                                Alert.alert(
-                                    '❌ Errore',
-                                    'Errore durante l\'invio dell\'email. Riprova.',
-                                    [{ text: 'OK' }]
-                                );
-                            } else {
-                                Alert.alert(
-                                    '✅ Email Inviata',
-                                    'Controlla la tua casella email per le istruzioni di reset.',
-                                    [{ text: 'OK' }]
-                                );
-                            }
-                        } catch (error) {
-                            Alert.alert('❌ Errore', 'Errore imprevisto. Riprova.', [{ text: 'OK' }]);
-                        } finally {
-                            setIsLoading(false);
+                        const result = await resetPassword(formData.email);
+
+                        if (result.success) {
+                            Alert.alert(
+                                '✅ Email Inviata',
+                                'Controlla la tua casella email per le istruzioni di reset.',
+                                [{ text: 'OK' }]
+                            );
+                        } else {
+                            Alert.alert(
+                                '❌ Errore',
+                                result.error || 'Errore durante l\'invio dell\'email. Riprova.',
+                                [{ text: 'OK' }]
+                            );
                         }
                     }
                 }
             ]
         );
+    };
+
+    // Auto-fill per testing (solo in development)
+    const autoFillTest = () => {
+        setFormData({
+            email: 'test@fixnow.it',
+            password: 'password123'
+        });
     };
 
     return (
@@ -195,13 +202,13 @@ export default function LoginScreen({ navigation }) {
                             style={styles.input}
                             placeholder="La tua email"
                             placeholderTextColor={COLORS.gray}
-                            value={email}
-                            onChangeText={setEmail}
+                            value={formData.email}
+                            onChangeText={(value) => updateFormData('email', value)}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             autoCorrect={false}
                             returnKeyType="next"
-                            editable={!isLoading}
+                            editable={!loading}
                         />
                     </View>
 
@@ -213,17 +220,17 @@ export default function LoginScreen({ navigation }) {
                                 style={styles.passwordInput}
                                 placeholder="La tua password"
                                 placeholderTextColor={COLORS.gray}
-                                value={password}
-                                onChangeText={setPassword}
+                                value={formData.password}
+                                onChangeText={(value) => updateFormData('password', value)}
                                 secureTextEntry={!showPassword}
                                 returnKeyType="done"
                                 onSubmitEditing={handleLogin}
-                                editable={!isLoading}
+                                editable={!loading}
                             />
                             <TouchableOpacity
                                 style={styles.passwordToggle}
                                 onPress={() => setShowPassword(!showPassword)}
-                                disabled={isLoading}
+                                disabled={loading}
                             >
                                 <Text style={styles.passwordToggleText}>
                                     {showPassword ? '🙈' : '👁️'}
@@ -232,13 +239,20 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     </View>
 
+                    {/* Error Display */}
+                    {error && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>❌ {error}</Text>
+                        </View>
+                    )}
+
                     {/* Login Button */}
                     <TouchableOpacity
-                        style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+                        style={[styles.loginButton, loading && styles.buttonDisabled]}
                         onPress={handleLogin}
-                        disabled={isLoading}
+                        disabled={loading}
                     >
-                        {isLoading ? (
+                        {loading ? (
                             <ActivityIndicator color={COLORS.white} size="small" />
                         ) : (
                             <Text style={styles.loginButtonText}>🔑 Accedi</Text>
@@ -249,7 +263,7 @@ export default function LoginScreen({ navigation }) {
                     <TouchableOpacity
                         style={styles.forgotButton}
                         onPress={handleForgotPassword}
-                        disabled={isLoading}
+                        disabled={loading}
                     >
                         <Text style={styles.forgotButtonText}>
                             🔄 Password Dimenticata?
@@ -264,7 +278,7 @@ export default function LoginScreen({ navigation }) {
                     <TouchableOpacity
                         style={styles.registerButton}
                         onPress={() => navigation?.navigate('Register')}
-                        disabled={isLoading}
+                        disabled={loading}
                     >
                         <Text style={styles.registerButtonText}>
                             📝 Registrati Ora
@@ -273,21 +287,23 @@ export default function LoginScreen({ navigation }) {
                 </View>
 
                 {/* Development Info */}
-                <View style={styles.devInfo}>
-                    <Text style={styles.devTitle}>🚧 Account di Test</Text>
-                    <Text style={styles.devText}>Email: test@fixnow.it</Text>
-                    <Text style={styles.devText}>Password: password123</Text>
-                    <TouchableOpacity
-                        style={styles.devButton}
-                        onPress={() => {
-                            setEmail('test@fixnow.it');
-                            setPassword('password123');
-                        }}
-                        disabled={isLoading}
-                    >
-                        <Text style={styles.devButtonText}>⚡ Auto-Fill Test</Text>
-                    </TouchableOpacity>
-                </View>
+                {__DEV__ && (
+                    <View style={styles.devInfo}>
+                        <Text style={styles.devTitle}>🚧 Testing (Solo Development)</Text>
+                        <Text style={styles.devText}>Email: test@fixnow.it</Text>
+                        <Text style={styles.devText}>Password: password123</Text>
+                        <TouchableOpacity
+                            style={styles.devButton}
+                            onPress={autoFillTest}
+                            disabled={loading}
+                        >
+                            <Text style={styles.devButtonText}>⚡ Auto-Fill Test</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.devNote}>
+                            🔄 Usando Supabase Auth REALE
+                        </Text>
+                    </View>
+                )}
 
             </ScrollView>
         </KeyboardAvoidingView>
@@ -365,6 +381,19 @@ const styles = StyleSheet.create({
     passwordToggleText: {
         fontSize: 18,
     },
+    errorContainer: {
+        backgroundColor: '#FFF0F0',
+        borderWidth: 1,
+        borderColor: COLORS.error,
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 15,
+    },
+    errorText: {
+        color: COLORS.error,
+        fontSize: 14,
+        textAlign: 'center',
+    },
     loginButton: {
         backgroundColor: COLORS.primary,
         padding: 18,
@@ -419,7 +448,6 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.white,
         padding: 15,
         borderRadius: 12,
-        marginBottom: 20,
         borderWidth: 1,
         borderColor: COLORS.warning,
     },
@@ -440,10 +468,17 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         alignItems: 'center',
         marginTop: 8,
+        marginBottom: 8,
     },
     devButtonText: {
         color: COLORS.white,
         fontSize: 12,
         fontWeight: '600',
+    },
+    devNote: {
+        fontSize: 11,
+        color: COLORS.success,
+        fontWeight: 'bold',
+        textAlign: 'center',
     },
 });
