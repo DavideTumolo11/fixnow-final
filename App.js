@@ -1,7 +1,4 @@
-// App.js - VERSIONE MIGLIORATA con feedback utente
-import { StripeProvider } from '@stripe/stripe-react-native';
-import { PaymentProvider } from './contexts/PaymentContext';
-import { STRIPE_CONFIG, validateStripeConfig } from './lib/stripe';
+// App.js - VERSIONE CORRETTA SENZA ERRORI
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -18,6 +15,8 @@ import {
 } from 'react-native';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
 
 // FixNow Colors
 const COLORS = {
@@ -31,7 +30,7 @@ const COLORS = {
   gray: '#757575'
 };
 
-// 🔧 CATEGORIE AGGIORNATE (rimosso "Impermeabilizzazioni" e "Altri Servizi Urgenti")
+// 🔧 CATEGORIE AGGIORNATE - SIMBOLI CORRETTI
 const CATEGORIE_COMPLETE = [
   { id: 1, nome: 'Idraulico & Termoidraulico', icona: '🔧', urgente: true, settore: 'domestico', prezzo_base: [70, 100] },
   { id: 2, nome: 'Elettricista & Elettrodomestici', icona: '⚡', urgente: true, settore: 'domestico', prezzo_base: [80, 110] },
@@ -51,224 +50,18 @@ const CATEGORIE_COMPLETE = [
   { id: 16, nome: 'Veterinario Emergenze', icona: '🐕', urgente: true, settore: 'domestico', prezzo_base: [90, 160] }
 ];
 
-// SIMPLE LOGIN SCREEN COMPONENT
-function SimpleLoginScreen({ onNavigate }) {
-  const [email, setEmail] = useState('test@fixnow.it');
-  const [password, setPassword] = useState('password123');
-  const [isLoading, setIsLoading] = useState(false);
+// 🔧 LIVELLI URGENZA CORRETTI - NIENTE SIMBOLI E PERCENTUALI
+const URGENCY_LEVELS = [
+  { id: 'normale', nome: '🟢 Normale', desc: 'Entro 2-4 ore' },
+  { id: 'urgente', nome: '🟡 Urgente', desc: 'Entro 1 ora' },
+  { id: 'emergenza', nome: '🔴 Emergenza', desc: 'Entro 15 minuti' }
+];
 
-  const handleLogin = () => {
-    setIsLoading(true);
-
-    // Simula login (in una vera app useresti AuthContext)
-    setTimeout(() => {
-      setIsLoading(false);
-      Alert.alert(
-        '✅ Login Simulato',
-        'Per ora simulo il login. In produzione si collegherà a Supabase.',
-        [{ text: 'OK', onPress: () => onNavigate('home') }]
-      );
-    }, 1000);
-  };
-
-  return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
-      <View style={styles.loginContainer}>
-        <View style={styles.loginHeader}>
-          <Text style={styles.logo}>FixNow</Text>
-          <Text style={styles.tagline}>Assistenza Tecnica 24/7</Text>
-          <Text style={styles.subtitle}>Accedi al tuo account</Text>
-        </View>
-
-        <View style={styles.loginForm}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>📧 Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="La tua email"
-              placeholderTextColor={COLORS.gray}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isLoading}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>🔒 Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="La tua password"
-              placeholderTextColor={COLORS.gray}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!isLoading}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color={COLORS.white} size="small" />
-            ) : (
-              <Text style={styles.loginButtonText}>🔑 Accedi</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.registerButton}
-            onPress={() => onNavigate('register')}
-            disabled={isLoading}
-          >
-            <Text style={styles.registerButtonText}>📝 Registrati</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.devInfo}>
-          <Text style={styles.devTitle}>🚧 Account di Test</Text>
-          <Text style={styles.devText}>Email: test@fixnow.it</Text>
-          <Text style={styles.devText}>Password: password123</Text>
-          <Text style={styles.devText}>⚡ Login simulato per demo</Text>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-// SIMPLE REGISTER SCREEN COMPONENT
-function SimpleRegisterScreen({ onNavigate }) {
-  const [formData, setFormData] = useState({
-    nome: '',
-    cognome: '',
-    email: '',
-    password: '',
-    tipo_utente: ''
-  });
-  const [isLoading, setIsLoading] = useState(false);
-
-  const USER_TYPES = [
-    { id: 'cliente', nome: '👤 Cliente', descrizione: 'Richiedo servizi' },
-    { id: 'tecnico', nome: '🔧 Tecnico', descrizione: 'Offro servizi' },
-    { id: 'hotel', nome: '🏨 Hotel', descrizione: 'Gestisco struttura' }
-  ];
-
-  const handleRegister = () => {
-    if (!formData.nome || !formData.email || !formData.tipo_utente) {
-      Alert.alert('❌ Campi obbligatori', 'Compila tutti i campi richiesti.', [{ text: 'OK' }]);
-      return;
-    }
-
-    setIsLoading(true);
-
-    setTimeout(() => {
-      setIsLoading(false);
-      Alert.alert(
-        '✅ Registrazione Simulata',
-        `Account ${formData.tipo_utente} creato per ${formData.nome}!\n\nIn produzione si registrerà su Supabase.`,
-        [{ text: 'Accedi', onPress: () => onNavigate('login') }]
-      );
-    }, 1000);
-  };
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.registerContainer}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
-      <View style={styles.registerHeader}>
-        <TouchableOpacity onPress={() => onNavigate('login')}>
-          <Text style={styles.backButton}>← Indietro</Text>
-        </TouchableOpacity>
-        <Text style={styles.logo}>FixNow</Text>
-        <Text style={styles.subtitle}>Crea il tuo account</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👤 Tipo di Account</Text>
-        {USER_TYPES.map((type) => (
-          <TouchableOpacity
-            key={type.id}
-            style={[
-              styles.userTypeCard,
-              formData.tipo_utente === type.id && styles.userTypeSelected
-            ]}
-            onPress={() => setFormData({ ...formData, tipo_utente: type.id })}
-          >
-            <Text style={styles.userTypeName}>{type.nome}</Text>
-            <Text style={styles.userTypeDesc}>{type.descrizione}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📝 Informazioni</Text>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Nome *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Il tuo nome"
-            value={formData.nome}
-            onChangeText={(text) => setFormData({ ...formData, nome: text })}
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="la.tua.email@example.com"
-            value={formData.email}
-            onChangeText={(text) => setFormData({ ...formData, email: text })}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Password *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Minimo 6 caratteri"
-            value={formData.password}
-            onChangeText={(text) => setFormData({ ...formData, password: text })}
-            secureTextEntry
-          />
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.registerSubmitButton, isLoading && styles.buttonDisabled]}
-        onPress={handleRegister}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color={COLORS.white} size="small" />
-        ) : (
-          <Text style={styles.registerSubmitText}>🚀 Crea Account</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-// SIMPLE BOOKING SCREEN COMPONENT
+// SIMPLE BOOKING SCREEN COMPONENT - AGGIORNATO
 function SimpleBookingScreen({ onNavigate, selectedCategory }) {
   const [problemTitle, setProblemTitle] = useState('');
   const [problemDescription, setProblemDescription] = useState('');
   const [urgencyLevel, setUrgencyLevel] = useState('normale');
-
-  const URGENCY_LEVELS = [
-    { id: 'normale', nome: '🟢 Normale', desc: '2-4 ore', extra: '0%' },
-    { id: 'urgente', nome: '🟡 Urgente', desc: '< 1 ora', extra: '+30%' },
-    { id: 'emergenza', nome: '🔴 Emergenza', desc: '< 15 min', extra: '+100%' }
-  ];
 
   const handleSubmit = () => {
     if (!problemTitle || !problemDescription) {
@@ -292,7 +85,6 @@ function SimpleBookingScreen({ onNavigate, selectedCategory }) {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* 🔧 HEADER CORRETTO - TITOLO SOPRA, BOTTONE SOTTO A SINISTRA */}
       <View style={styles.bookingHeader}>
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>Richiedi Assistenza</Text>
@@ -335,7 +127,6 @@ function SimpleBookingScreen({ onNavigate, selectedCategory }) {
                 <Text style={styles.urgencyName}>{urgency.nome}</Text>
                 <Text style={styles.urgencyDescription}>{urgency.desc}</Text>
               </View>
-              <Text style={styles.urgencyPrice}>{urgency.extra}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -373,7 +164,6 @@ function SimpleBookingScreen({ onNavigate, selectedCategory }) {
           <Text style={styles.submitButtonText}>🎯 Trova Tecnici</Text>
         </TouchableOpacity>
 
-        {/* 🔧 RIDOTTO SPAZIO IN FONDO */}
         <View style={{ height: 10 }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -401,9 +191,8 @@ function SimpleMatchingScreen({ onNavigate, bookingData }) {
       [
         { text: 'Annulla', style: 'cancel' },
         {
-          text: '✅ Conferma e Paga', // 🔧 CAMBIATO il testo
+          text: '✅ Conferma e Paga',
           onPress: () => {
-            // 🔧 NAVIGA alla schermata pagamento invece di confermare subito
             onNavigate('payment', {
               selectedTechnician: tech,
               bookingData: {
@@ -432,7 +221,6 @@ function SimpleMatchingScreen({ onNavigate, bookingData }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* 🔧 HEADER CORRETTO - TITOLO SOPRA, BOTTONE SOTTO A SINISTRA */}
       <View style={styles.matchingHeader}>
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>Tecnici Disponibili</Text>
@@ -491,9 +279,10 @@ function SimpleMatchingScreen({ onNavigate, bookingData }) {
   );
 }
 
-// MAIN APP COMPONENT
+// 🔧 MAIN APP COMPONENT - AUTHCONTEXT REALE
 function MainApp() {
-  const [currentScreen, setCurrentScreen] = useState('login'); // Inizia con login
+  const { isAuthenticated, initializing, user, profile } = useAuth();
+  const [currentScreen, setCurrentScreen] = useState('home');
   const [screenData, setScreenData] = useState({});
   const [supabaseStatus, setSupabaseStatus] = useState('testing');
 
@@ -501,7 +290,6 @@ function MainApp() {
     setCurrentScreen(screen);
     setScreenData(data);
   };
-
 
   // Test Supabase connection
   useEffect(() => {
@@ -527,29 +315,43 @@ function MainApp() {
     }
   };
 
-  // HOME SCREEN
-  if (currentScreen === 'home') {
-    return <HomeScreen navigate={navigate} supabaseStatus={supabaseStatus} onTestConnection={testSupabaseConnection} />;
+  // 🔄 LOADING SCREEN
+  if (initializing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>🚀 Caricamento FixNow...</Text>
+        <Text style={styles.loadingSubtext}>Inizializzazione app in corso</Text>
+      </View>
+    );
   }
 
-  // SCREEN ROUTING
-  switch (currentScreen) {
-    case 'login':
-      return <SimpleLoginScreen onNavigate={navigate} />;
-    case 'register':
-      return <SimpleRegisterScreen onNavigate={navigate} />;
-    case 'booking':
-      return <SimpleBookingScreen onNavigate={navigate} selectedCategory={screenData.categoria} />;
-    case 'matching':
-      return <SimpleMatchingScreen onNavigate={navigate} bookingData={screenData} />;
-    default:
-      return <SimpleLoginScreen onNavigate={navigate} />;
+  // 🔐 NON AUTENTICATO - MOSTRA LOGIN/REGISTER
+  if (!isAuthenticated) {
+    if (currentScreen === 'register') {
+      return <RegisterScreen navigation={{ navigate: () => setCurrentScreen('login') }} />;
+    }
+    return <LoginScreen navigation={{ navigate: () => setCurrentScreen('register') }} />;
   }
+
+  // ✅ AUTENTICATO - MOSTRA APP PRINCIPALE
+  if (currentScreen === 'booking') {
+    return <SimpleBookingScreen onNavigate={navigate} selectedCategory={screenData.categoria} />;
+  }
+
+  if (currentScreen === 'matching') {
+    return <SimpleMatchingScreen onNavigate={navigate} bookingData={screenData} />;
+  }
+
+  // HOME SCREEN AUTENTICATA
+  return <HomeScreen navigate={navigate} supabaseStatus={supabaseStatus} onTestConnection={testSupabaseConnection} user={user} profile={profile} />;
 }
 
-// HOME SCREEN COMPONENT 
-function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
-  // 🔧 FIX: Funzione handleCategoriaPress corretta
+// 🏠 HOME SCREEN COMPONENT - CON UTENTE REALE
+function HomeScreen({ navigate, supabaseStatus, onTestConnection, user, profile }) {
+  const { signOut } = useAuth();
+
   const handleCategoriaPress = (categoria) => {
     Alert.alert(
       `${categoria.icona} ${categoria.nome}`,
@@ -564,10 +366,21 @@ function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
   const handleSOSPress = () => {
     Alert.alert(
       '🚨 EMERGENZA SOS',
-      'Attivazione servizio emergenza 24/7\n\n⏱️ Risposta < 10 minuti\n💰 Tariffa +100%',
+      'Attivazione servizio emergenza 24/7\n\n⏱️ Risposta entro 10 minuti\n💰 Tariffa maggiorata',
       [
         { text: 'Annulla', style: 'cancel' },
         { text: '🚨 ATTIVA SOS', style: 'destructive', onPress: () => navigate('booking', { urgenza: 'emergenza' }) }
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      '🚪 Logout',
+      'Vuoi disconnetterti dal tuo account?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        { text: 'Logout', onPress: signOut, style: 'destructive' }
       ]
     );
   };
@@ -596,9 +409,11 @@ function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigate('login')} style={styles.userInfo}>
+        <TouchableOpacity onPress={handleLogout} style={styles.userInfo}>
           <Text style={styles.headerTitle}>FixNow Sardegna</Text>
-          <Text style={styles.headerSubtitle}>👋 Demo Utente (Tap per Logout)</Text>
+          <Text style={styles.headerSubtitle}>
+            👋 {profile?.nome || user?.email || 'Utente'} ({profile?.tipo_utente || 'cliente'})
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -632,7 +447,6 @@ function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
           <Text style={styles.sectionSubtitle}>Risposta entro 15 minuti</Text>
         </View>
 
-        {/* 🔧 CATEGORIE URGENTI SENZA PREZZI */}
         <View style={styles.categoriesGrid}>
           {categorieUrgenti.map((categoria) => (
             <TouchableOpacity
@@ -654,7 +468,6 @@ function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
           <Text style={styles.sectionSubtitle}>Risposta entro 2 ore</Text>
         </View>
 
-        {/* 🔧 CATEGORIE STANDARD SENZA PREZZI */}
         <View style={styles.categoriesGrid}>
           {categorieStandard.map((categoria) => (
             <TouchableOpacity
@@ -669,18 +482,16 @@ function HomeScreen({ navigate, supabaseStatus, onTestConnection }) {
         </View>
 
         <View style={styles.devInfo}>
-          <Text style={styles.devTitle}>🎉 MVP FixNow - App Migliorata!</Text>
-          <Text style={styles.devText}>✅ Autenticazione Simulata</Text>
-          <Text style={styles.devText}>✅ 16 Categorie Ottimizzate</Text>
-          <Text style={styles.devText}>✅ Sistema Prenotazioni</Text>
-          <Text style={styles.devText}>✅ Matching Tecnici</Text>
-          <Text style={styles.devText}>✅ Navigazione con Back Button</Text>
-          <Text style={styles.devText}>✅ Design Mobile-First</Text>
-          <Text style={styles.devText}>✅ Prezzi solo nei dettagli</Text>
-          <Text style={styles.devText}>✅ UI/UX Migliorata</Text>
-          <Text style={styles.devText}>🔄 Pronto per Supabase reale</Text>
-          <Text style={styles.devText}>⏳ Sistema Pagamenti Stripe</Text>
-          <Text style={styles.devText}>⏳ Chat Real-time</Text>
+          <Text style={styles.devTitle}>🎉 FixNow - Autenticazione Reale!</Text>
+          <Text style={styles.devText}>✅ Login/Register Supabase funzionante</Text>
+          <Text style={styles.devText}>✅ Utente: {profile?.nome || 'Caricamento...'}</Text>
+          <Text style={styles.devText}>✅ Tipo: {profile?.tipo_utente || 'cliente'}</Text>
+          <Text style={styles.devText}>✅ 16 Categorie ottimizzate</Text>
+          <Text style={styles.devText}>✅ Simboli e percentuali corretti</Text>
+          <Text style={styles.devText}>✅ Sistema prenotazioni</Text>
+          <Text style={styles.devText}>✅ Matching tecnici</Text>
+          <Text style={styles.devText}>⏳ Sistema pagamenti Stripe</Text>
+          <Text style={styles.devText}>⏳ Chat real-time</Text>
         </View>
       </ScrollView>
     </View>
@@ -721,169 +532,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-
-  // LOGIN STYLES
-  loginContainer: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  loginHeader: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 10,
-  },
-  tagline: {
-    fontSize: 16,
-    color: COLORS.gray,
-    marginBottom: 20,
-  },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.dark,
-  },
-  loginForm: {
-    marginBottom: 30,
-  },
-  inputContainer: {
-    marginBottom: 15,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.dark,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.light,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: COLORS.dark,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  loginButton: {
-    backgroundColor: COLORS.primary,
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  registerButton: {
-    backgroundColor: COLORS.secondary,
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  registerButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  devInfo: {
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.warning,
-  },
-  devTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.dark,
-    marginBottom: 5,
-  },
-  devText: {
-    fontSize: 12,
-    color: COLORS.gray,
-    marginBottom: 2,
-  },
-
-  // REGISTER STYLES
-  registerContainer: {
-    padding: 20,
-  },
-  registerHeader: {
-    alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 20,
-  },
-  backButton: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  section: {
-    marginBottom: 5,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.dark,
-    marginBottom: 15,
-  },
-  userTypeCard: {
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: COLORS.light,
-  },
-  userTypeSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#FFF5F2',
-  },
-  userTypeName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.dark,
-    marginBottom: 5,
-  },
-  userTypeDesc: {
-    fontSize: 14,
-    color: COLORS.gray,
-  },
-  registerSubmitButton: {
-    backgroundColor: COLORS.primary,
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  registerSubmitText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-
-  // BOOKING STYLES
   bookingHeader: {
     backgroundColor: COLORS.primary,
     paddingTop: 60,
-    paddingBottom: 10,        // 🔧 Ridotto
+    paddingBottom: 10,
     paddingHorizontal: 20,
-    flexDirection: 'column',  // 🔧 CAMBIATO DA 'row' A 'column'
+    flexDirection: 'column',
   },
   headerTop: {
     alignItems: 'center',
@@ -891,18 +545,16 @@ const styles = StyleSheet.create({
   },
   headerBottom: {
     flexDirection: 'row',
-    justifyContent: 'flex-start', // 🔧 Bottone a SINISTRA
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
   headerBottomSpacer: {
     flex: 1,
   },
-  backButtonContainer: {
-    // Container del bottone
-  },
+  backButtonContainer: {},
   backButton: {
     color: COLORS.white,
-    fontSize: 11,             // 🔧 Piccolissimo
+    fontSize: 11,
     fontWeight: '500',
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 4,
@@ -917,13 +569,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  headerSpacer: {
-    width: 80,            // 🔧 Aumentato da 60 a 80 per bilanciare
-  },
   bookingContent: {
     flex: 1,
     padding: 20,
-    paddingTop: 10,           // 🔧 Ridotto da 20 a 10 per ridurre spazio
+    paddingTop: 10,
   },
   selectedCategory: {
     backgroundColor: COLORS.white,
@@ -944,6 +593,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.dark,
+    marginBottom: 15,
   },
   urgencyCard: {
     backgroundColor: COLORS.white,
@@ -972,10 +630,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.gray,
   },
-  urgencyPrice: {
+  inputContainer: {
+    marginBottom: 15,
+  },
+  label: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    fontWeight: '600',
+    color: COLORS.dark,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.light,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: COLORS.dark,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
@@ -989,12 +664,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-
-  // MATCHING STYLES
   matchingHeader: {
     backgroundColor: COLORS.primary,
     paddingTop: 60,
-    paddingBottom: 10,        // 🔧 Ridotto
+    paddingBottom: 10,
     paddingHorizontal: 20,
     flexDirection: 'column',
   },
@@ -1091,8 +764,6 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontWeight: '500',
   },
-
-  // HOME STYLES
   header: {
     backgroundColor: COLORS.primary,
     paddingTop: 50,
@@ -1104,12 +775,6 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    marginBottom: 2,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -1233,5 +898,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: COLORS.white,
+  },
+  devInfo: {
+    backgroundColor: COLORS.white,
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.success,
+  },
+  devTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: COLORS.dark,
+    marginBottom: 5,
+  },
+  devText: {
+    fontSize: 12,
+    color: COLORS.success,
+    marginBottom: 2,
   },
 });

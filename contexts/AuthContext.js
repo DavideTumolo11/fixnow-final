@@ -1,4 +1,4 @@
-// contexts/AuthContext.js - SISTEMA AUTENTICAZIONE COMPLETO
+// contexts/AuthContext.js - SISTEMA AUTENTICAZIONE COMPLETO CORRETTO
 // FixNow Sardegna - Enterprise Grade Authentication
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
@@ -70,12 +70,159 @@ export const AuthProvider = ({ children }) => {
         deviceInfo: null
     });
 
-    // 🔄 INIZIALIZZAZIONE - Controlla sessione esistente
-    useEffect(() => {
-        initializeAuth();
-        setupAuthListener();
-    }, []);
+    // 👤 CARICA PROFILO UTENTE - DEFINITA PRIMA DI TUTTO
+    const loadUserProfile = async (userId) => {
+        try {
+            if (!userId) {
+                console.log('❌ No userId provided to loadUserProfile');
+                return null;
+            }
 
+            console.log('🔍 Loading profile for user:', userId);
+
+            // Query semplificata senza join
+            const { data: profile, error } = await supabase
+                .from('profili')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    console.log('👤 Profile not found - first time user');
+                    return null;
+                }
+                console.error('❌ Profile loading error:', error);
+                return null;
+            }
+
+            console.log('✅ Profile loaded:', profile.nome, profile.tipo_utente);
+            return profile;
+
+        } catch (error) {
+            console.error('❌ Profile loading failed:', error);
+            return null;
+        }
+    };
+
+    // 🏗️ FUNZIONI HELPER
+    const determineOnboardingState = (user, profile) => {
+        if (!profile) return ONBOARDING_STATES.NOT_STARTED;
+        if (!user.email_confirmed_at) return ONBOARDING_STATES.PROFILE_CREATED;
+        if (profile.tipo_utente === 'tecnico' && !profile.documenti_verificati) {
+            return ONBOARDING_STATES.DOCUMENTS_PENDING;
+        }
+        if (!profile.profilo_verificato) return ONBOARDING_STATES.VERIFICATION_PENDING;
+        return ONBOARDING_STATES.COMPLETED;
+    };
+
+    const calculatePermissions = (profile) => {
+        const permissions = ['read_own_data'];
+
+        switch (profile?.tipo_utente) {
+            case USER_TYPES.TECNICO:
+                permissions.push('accept_bookings', 'view_client_data', 'update_booking_status');
+                break;
+            case USER_TYPES.HOTEL:
+                permissions.push('create_bookings', 'manage_contracts', 'view_analytics');
+                break;
+            case USER_TYPES.CLIENTE:
+                permissions.push('create_bookings', 'rate_technicians');
+                break;
+            case USER_TYPES.ADMIN:
+                permissions.push('manage_users', 'view_all_data', 'manage_disputes');
+                break;
+        }
+
+        return permissions;
+    };
+
+    // 🔄 GESTIONE STATO AUTH
+    const handleAuthStateChange = async (session) => {
+        try {
+            if (!session?.user) {
+                handleSignOut();
+                return;
+            }
+
+            setAuthState(prev => ({
+                ...prev,
+                loading: true,
+                user: session.user,
+                session
+            }));
+
+            console.log('🔄 Handling auth state change for:', session.user.email);
+
+            // Carica profilo utente
+            const profile = await loadUserProfile(session.user.id);
+
+            if (profile) {
+                // Determina stato onboarding
+                const onboardingState = determineOnboardingState(session.user, profile);
+
+                setAuthState(prev => ({
+                    ...prev,
+                    profile,
+                    onboardingState,
+                    needsEmailVerification: !session.user.email_confirmed_at,
+                    needsDocumentVerification: profile.tipo_utente === 'tecnico' && !profile.documenti_verificati,
+                    permissions: calculatePermissions(profile),
+                    lastActivity: new Date(),
+                    loading: false,
+                    initializing: false,
+                    error: null
+                }));
+
+                console.log('✅ Auth state updated with profile');
+            } else {
+                // Profilo non trovato - possibile primo accesso
+                setAuthState(prev => ({
+                    ...prev,
+                    profile: null,
+                    onboardingState: ONBOARDING_STATES.NOT_STARTED,
+                    needsEmailVerification: !session.user.email_confirmed_at,
+                    loading: false,
+                    initializing: false,
+                    error: null
+                }));
+
+                console.log('⚠️ No profile found - first time user');
+            }
+
+        } catch (error) {
+            console.error('❌ Auth state change failed:', error);
+            setAuthState(prev => ({
+                ...prev,
+                loading: false,
+                initializing: false,
+                error: error.message
+            }));
+        }
+    };
+
+    const handleSignOut = () => {
+        setAuthState({
+            user: null,
+            profile: null,
+            session: null,
+            loading: false,
+            initializing: false,
+            refreshing: false,
+            error: null,
+            loginAttempts: 0,
+            lockedUntil: null,
+            onboardingState: ONBOARDING_STATES.NOT_STARTED,
+            needsEmailVerification: false,
+            needsDocumentVerification: false,
+            permissions: [],
+            lastActivity: null,
+            deviceInfo: null
+        });
+        console.log('👋 User signed out');
+    };
+
+    // 🔄 INIZIALIZZAZIONE - Controlla sessione esistente
     const initializeAuth = async () => {
         try {
             console.log('🔐 Initializing authentication...');
@@ -131,7 +278,12 @@ export const AuthProvider = ({ children }) => {
                         console.log('🔄 Token refreshed');
                         break;
                     case 'USER_UPDATED':
-                        await loadUserProfile(session?.user?.id);
+                        if (session?.user?.id) {
+                            const profile = await loadUserProfile(session.user.id);
+                            if (profile) {
+                                setAuthState(prev => ({ ...prev, profile }));
+                            }
+                        }
                         break;
                 }
             }
@@ -140,92 +292,12 @@ export const AuthProvider = ({ children }) => {
         return () => subscription?.unsubscribe();
     };
 
-    // 🔄 GESTIONE STATO AUTH
-    const handleAuthStateChange = async (session) => {
-        try {
-            if (!session?.user) {
-                handleSignOut();
-                return;
-            }
-
-            setAuthState(prev => ({
-                ...prev,
-                loading: true,
-                user: session.user,
-                session
-            }));
-
-            // Carica profilo utente
-            const profile = await loadUserProfile(session.user.id);
-
-            if (profile) {
-                // Determina stato onboarding
-                const onboardingState = determineOnboardingState(session.user, profile);
-
-                setAuthState(prev => ({
-                    ...prev,
-                    profile,
-                    onboardingState,
-                    needsEmailVerification: !session.user.email_confirmed_at,
-                    needsDocumentVerification: profile.tipo_utente === 'tecnico' && !profile.documenti_verificati,
-                    permissions: calculatePermissions(profile),
-                    lastActivity: new Date(),
-                    loading: false,
-                    initializing: false,
-                    error: null
-                }));
-            } else {
-                // Profilo non trovato - possibile primo accesso
-                setAuthState(prev => ({
-                    ...prev,
-                    onboardingState: ONBOARDING_STATES.NOT_STARTED,
-                    needsEmailVerification: !session.user.email_confirmed_at,
-                    loading: false,
-                    initializing: false
-                }));
-            }
-
-        } catch (error) {
-            console.error('❌ Auth state change failed:', error);
-            setAuthState(prev => ({
-                ...prev,
-                loading: false,
-                initializing: false,
-                error: error.message
-            }));
-        }
-    };
-
-    // 👤 CARICA PROFILO UTENTE
-    const loadUserProfile = async (userId) => {
-        try {
-            if (!userId) return null;
-
-            const { data: profile, error } = await supabase
-                .from('profili')
-                .select(`
-                    *,
-                    contratti_hotel(*)
-                `)
-                .eq('id', userId)
-                .single();
-
-            if (error) {
-                if (error.code === 'PGRST116') {
-                    console.log('👤 Profile not found - first time user');
-                    return null;
-                }
-                throw error;
-            }
-
-            console.log('✅ Profile loaded:', profile.nome, profile.tipo_utente);
-            return profile;
-
-        } catch (error) {
-            console.error('❌ Profile loading failed:', error);
-            return null;
-        }
-    };
+    // 🔄 INIZIALIZZAZIONE useEffect
+    useEffect(() => {
+        initializeAuth();
+        const cleanup = setupAuthListener();
+        return cleanup;
+    }, []);
 
     // 📝 REGISTRAZIONE UTENTE
     const signUp = useCallback(async (email, password, userData) => {
@@ -405,27 +477,6 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
-    const handleSignOut = () => {
-        setAuthState({
-            user: null,
-            profile: null,
-            session: null,
-            loading: false,
-            initializing: false,
-            refreshing: false,
-            error: null,
-            loginAttempts: 0,
-            lockedUntil: null,
-            onboardingState: ONBOARDING_STATES.NOT_STARTED,
-            needsEmailVerification: false,
-            needsDocumentVerification: false,
-            permissions: [],
-            lastActivity: null,
-            deviceInfo: null
-        });
-        console.log('👋 User signed out');
-    };
-
     // 🔄 RESET PASSWORD
     const resetPassword = useCallback(async (email) => {
         try {
@@ -507,38 +558,6 @@ export const AuthProvider = ({ children }) => {
             return { success: false, error: error.message };
         }
     }, [authState.user?.email]);
-
-    // 🏗️ FUNZIONI HELPER
-    const determineOnboardingState = (user, profile) => {
-        if (!profile) return ONBOARDING_STATES.NOT_STARTED;
-        if (!user.email_confirmed_at) return ONBOARDING_STATES.PROFILE_CREATED;
-        if (profile.tipo_utente === 'tecnico' && !profile.documenti_verificati) {
-            return ONBOARDING_STATES.DOCUMENTS_PENDING;
-        }
-        if (!profile.profilo_verificato) return ONBOARDING_STATES.VERIFICATION_PENDING;
-        return ONBOARDING_STATES.COMPLETED;
-    };
-
-    const calculatePermissions = (profile) => {
-        const permissions = ['read_own_data'];
-
-        switch (profile?.tipo_utente) {
-            case USER_TYPES.TECNICO:
-                permissions.push('accept_bookings', 'view_client_data', 'update_booking_status');
-                break;
-            case USER_TYPES.HOTEL:
-                permissions.push('create_bookings', 'manage_contracts', 'view_analytics');
-                break;
-            case USER_TYPES.CLIENTE:
-                permissions.push('create_bookings', 'rate_technicians');
-                break;
-            case USER_TYPES.ADMIN:
-                permissions.push('manage_users', 'view_all_data', 'manage_disputes');
-                break;
-        }
-
-        return permissions;
-    };
 
     // 🎯 CONTEXT VALUE
     const contextValue = {
