@@ -1,4 +1,7 @@
 // App.js - VERSIONE CORRETTA SENZA ERRORI
+// Prova con estensione esplicita:
+import RealBookingScreen from './screens/RealBookingScreen.js';
+import TechnicianMatchingScreen from './screens/TechnicianMatchingScreen';
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -337,11 +340,23 @@ function MainApp() {
 
   // ✅ AUTENTICATO - MOSTRA APP PRINCIPALE
   if (currentScreen === 'booking') {
-    return <SimpleBookingScreen onNavigate={navigate} selectedCategory={screenData.categoria} />;
+    return <RealBookingScreen
+      navigation={{
+        navigate,
+        goBack: () => navigate('home')
+      }}
+      route={{ params: screenData }}
+    />;
   }
 
   if (currentScreen === 'matching') {
-    return <SimpleMatchingScreen onNavigate={navigate} bookingData={screenData} />;
+    return <TechnicianMatchingScreen
+      navigation={{
+        navigate,
+        goBack: () => navigate('booking')
+      }}
+      route={{ params: screenData }}
+    />;
   }
 
   // HOME SCREEN AUTENTICATA
